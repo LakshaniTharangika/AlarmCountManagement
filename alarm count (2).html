@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alarm Count Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #10b981, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .step {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border-left: 5px solid #10b981;
+            transition: all 0.3s ease;
+        }
+
+        .step:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .step h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .step-number {
+            background: linear-gradient(45deg, #10b981, #3b82f6);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-weight: bold;
+        }
+
+        .upload-area {
+            border: 3px dashed #10b981;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: linear-gradient(45deg, rgba(16, 185, 129, 0.05), rgba(59, 130, 246, 0.05));
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #3b82f6;
+            background: linear-gradient(45deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1));
+        }
+
+        .upload-area.dragover {
+            border-color: #059669;
+            background: rgba(5, 150, 105, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #10b981;
+            margin-bottom: 15px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 1rem;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #10b981, #3b82f6);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 500px;
+            margin-top: 20px;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .stats-box {
+            background: linear-gradient(45deg, #10b981, #3b82f6);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ef4444;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .success {
+            background: #10b981;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Alarm Count Visualizer</h1>
+            <p>Upload your CSV file and visualize alarm patterns with interactive charts</p>
+        </div>
+
+        <!-- Step 1: File Upload -->
+        <div class="step">
+            <h3><span class="step-number">1</span>Upload CSV File</h3>
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📁</div>
+                <p><strong>Click to browse</strong> or drag and drop your CSV file here</p>
+                <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
+                    Expected columns: "Alarm Source", "Name", "Occurred On (NT)"
+                </p>
+            </div>
+            <input type="file" id="fileInput" accept=".csv" />
+            <div id="fileStatus"></div>
+        </div>
+
+        <!-- Step 2: Node Selection -->
+        <div class="step hidden" id="nodeStep">
+            <h3><span class="step-number">2</span>Select Node (Alarm Source)</h3>
+            <select id="nodeSelect">
+                <option value="">Choose a node...</option>
+            </select>
+        </div>
+
+        <!-- Step 3: Alarm Selection -->
+        <div class="step hidden" id="alarmStep">
+            <h3><span class="step-number">3</span>Select Alarm Name</h3>
+            <select id="alarmSelect">
+                <option value="">Choose an alarm...</option>
+            </select>
+        </div>
+
+        <!-- Step 4: Generate Graph -->
+        <div class="step hidden" id="generateStep">
+            <h3><span class="step-number">4</span>Generate Visualization</h3>
+            <button class="btn" id="generateBtn">Generate Graph</button>
+        </div>
+
+        <!-- Chart Display -->
+        <div class="step hidden" id="chartStep">
+            <h3><span class="step-number">📊</span>Alarm Count Visualization</h3>
+            <div class="chart-container">
+                <canvas id="alarmChart"></canvas>
+            </div>
+            <div id="statsBox" class="stats-box hidden">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalAlarms">0</div>
+                    <div class="stat-label">Total Alarms</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="activeHours">0</div>
+                    <div class="stat-label">Active Hours</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="avgPerHour">0</div>
+                    <div class="stat-label">Avg per Active Hour</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="maxInHour">0</div>
+                    <div class="stat-label">Max in Hour</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let csvData = [];
+        let parsedData = [];
+        let chart = null;
+
+        // File upload handling
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.querySelector('.upload-area');
+        const fileStatus = document.getElementById('fileStatus');
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            if (!file.name.toLowerCase().endsWith('.csv')) {
+                showError('Please select a CSV file.');
+                return;
+            }
+
+            showLoading('Parsing CSV file...');
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: false,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        showError('Error parsing CSV: ' + results.errors[0].message);
+                        return;
+                    }
+
+                    csvData = results.data;
+                    processData();
+                    showSuccess(`File uploaded successfully! Found ${csvData.length} records.`);
+                    showNodeSelection();
+                },
+                error: function(error) {
+                    showError('Error reading file: ' + error.message);
+                }
+            });
+        }
+
+        function processData() {
+            parsedData = [];
+            const nodes = new Set();
+            const alarms = new Set();
+
+            csvData.forEach(row => {
+                const alarmSource = row['Alarm Source'] || '';
+                const alarmName = row['Name'] || '';
+                const occurredOn = row['Occurred On (NT)'] || '';
+
+                if (!occurredOn.trim()) return;
+
+                // Parse date - try multiple formats
+                let date;
+                try {
+                    // Try different date formats
+                    if (occurredOn.includes('/')) {
+                        // MM/DD/YYYY or DD/MM/YYYY format
+                        const parts = occurredOn.split(' ');
+                        if (parts.length >= 2) {
+                            date = new Date(occurredOn);
+                        }
+                    } else {
+                        // YYYY-MM-DD format
+                        date = new Date(occurredOn);
+                    }
+
+                    if (isNaN(date.getTime())) {
+                        throw new Error('Invalid date');
+                    }
+                } catch (e) {
+                    console.warn('Could not parse date:', occurredOn);
+                    return;
+                }
+
+                parsedData.push({
+                    node: alarmSource,
+                    alarmName: alarmName,
+                    date: date,
+                    hour: date.getHours(),
+                    severity: row['Severity'] || '',
+                    location: row['Location Information'] || '',
+                    clearanceStatus: row['Clearance Status'] || ''
+                });
+
+                if (alarmSource) nodes.add(alarmSource);
+                if (alarmName) alarms.add(alarmName);
+            });
+
+            // Populate node dropdown
+            const nodeSelect = document.getElementById('nodeSelect');
+            nodeSelect.innerHTML = '<option value="">Choose a node...</option>';
+            Array.from(nodes).sort().forEach(node => {
+                const option = document.createElement('option');
+                option.value = node;
+                option.textContent = node;
+                nodeSelect.appendChild(option);
+            });
+        }
+
+        function showNodeSelection() {
+            document.getElementById('nodeStep').classList.remove('hidden');
+            
+            document.getElementById('nodeSelect').addEventListener('change', function() {
+                if (this.value) {
+                    showAlarmSelection(this.value);
+                } else {
+                    hideStepsAfter('nodeStep');
+                }
+            });
+        }
+
+        function showAlarmSelection(selectedNode) {
+            // Get alarms for selected node
+            const nodeAlarms = new Set();
+            parsedData.forEach(item => {
+                if (item.node === selectedNode && item.alarmName) {
+                    nodeAlarms.add(item.alarmName);
+                }
+            });
+
+            // Populate alarm dropdown
+            const alarmSelect = document.getElementById('alarmSelect');
+            alarmSelect.innerHTML = '<option value="">Choose an alarm...</option>';
+            Array.from(nodeAlarms).sort().forEach(alarm => {
+                const option = document.createElement('option');
+                option.value = alarm;
+                option.textContent = alarm;
+                alarmSelect.appendChild(option);
+            });
+
+            document.getElementById('alarmStep').classList.remove('hidden');
+
+            alarmSelect.addEventListener('change', function() {
+                if (this.value) {
+                    showGenerateStep();
+                } else {
+                    hideStepsAfter('alarmStep');
+                }
+            });
+        }
+
+        function showGenerateStep() {
+            document.getElementById('generateStep').classList.remove('hidden');
+            
+            document.getElementById('generateBtn').addEventListener('click', function() {
+                const selectedNode = document.getElementById('nodeSelect').value;
+                const selectedAlarm = document.getElementById('alarmSelect').value;
+                
+                if (selectedNode && selectedAlarm) {
+                    generateChart(selectedNode, selectedAlarm);
+                }
+            });
+        }
+
+        function generateChart(selectedNode, selectedAlarm) {
+            showLoading('Generating chart...');
+
+            // Filter data
+            const filteredData = parsedData.filter(item => 
+                item.node === selectedNode && item.alarmName === selectedAlarm
+            );
+
+            if (filteredData.length === 0) {
+                showError('No data found for the selected combination.');
+                return;
+            }
+
+            // Group by date and hour
+            const dateHourCounts = {};
+            filteredData.forEach(item => {
+                const dateKey = item.date.toISOString().split('T')[0]; // YYYY-MM-DD
+                const hourKey = `${dateKey}_${item.hour}`;
+                dateHourCounts[hourKey] = (dateHourCounts[hourKey] || 0) + 1;
+            });
+
+            // Create chart data
+            const labels = [];
+            const data = [];
+            const backgroundColors = [];
+            
+            // Generate all date-hour combinations
+            const dates = [...new Set(filteredData.map(item => item.date.toISOString().split('T')[0]))].sort();
+            
+            dates.forEach(date => {
+                for (let hour = 0; hour < 24; hour++) {
+                    const hourKey = `${date}_${hour}`;
+                    const count = dateHourCounts[hourKey] || 0;
+                    
+                    const dateObj = new Date(date);
+                    const dateLabel = `${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getDate().toString().padStart(2, '0')}`;
+                    const hourLabel = `${hour.toString().padStart(2, '0')}:00-${((hour + 1) % 24).toString().padStart(2, '0')}:00`;
+                    
+                    labels.push(`${dateLabel}\n${hourLabel}`);
+                    data.push(count);
+                    
+                    // Color coding with green and blue theme
+                    if (count === 0) {
+                        backgroundColors.push('rgba(200, 200, 200, 0.3)');
+                    } else if (count <= 2) {
+                        backgroundColors.push('rgba(16, 185, 129, 0.6)'); // Green
+                    } else if (count <= 5) {
+                        backgroundColors.push('rgba(59, 130, 246, 0.6)'); // Blue
+                    } else {
+                        backgroundColors.push('rgba(6, 182, 212, 0.8)'); // Cyan for high values
+                    }
+                }
+            });
+
+            // Calculate statistics
+            const totalAlarms = data.reduce((sum, count) => sum + count, 0);
+            const activeHours = data.filter(count => count > 0).length;
+            const avgPerActiveHour = activeHours > 0 ? (totalAlarms / activeHours).toFixed(1) : 0;
+            const maxInHour = Math.max(...data);
+
+            // Update statistics
+            document.getElementById('totalAlarms').textContent = totalAlarms;
+            document.getElementById('activeHours').textContent = activeHours;
+            document.getElementById('avgPerHour').textContent = avgPerActiveHour;
+            document.getElementById('maxInHour').textContent = maxInHour;
+
+            // Create chart
+            const ctx = document.getElementById('alarmChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Alarm Count',
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderColor: backgroundColors.map(color => color.replace('0.6', '1').replace('0.3', '0.8').replace('0.8', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${selectedNode} - ${selectedAlarm}`,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date & Time'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Number of Alarms'
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('chartStep').classList.remove('hidden');
+            document.getElementById('statsBox').classList.remove('hidden');
+            hideLoading();
+        }
+
+        function hideStepsAfter(stepId) {
+            const steps = ['nodeStep', 'alarmStep', 'generateStep', 'chartStep'];
+            const startHiding = steps.indexOf(stepId) + 1;
+            
+            for (let i = startHiding; i < steps.length; i++) {
+                document.getElementById(steps[i]).classList.add('hidden');
+            }
+        }
+
+        function showLoading(message) {
+            fileStatus.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>${message}</span>
+                </div>
+            `;
+        }
+
+        function hideLoading() {
+            fileStatus.innerHTML = '';
+        }
+
+        function showError(message) {
+            fileStatus.innerHTML = `<div class="error">❌ ${message}</div>`;
+        }
+
+        function showSuccess(message) {
+            fileStatus.innerHTML = `<div class="success">✅ ${message}</div>`;
+        }
+    </script>
+</body>
+</html>
